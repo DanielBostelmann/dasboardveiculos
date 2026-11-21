@@ -1,0 +1,69 @@
+// Modelo de dados da dashboard de veículos (Neon/Postgres via Prisma).
+// Docs: https://pris.ly/d/prisma-schema
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider  = "postgresql"
+  url       = env("DATABASE_URL")
+  // directUrl aponta para a conexão direta (não-pooled) do Neon, usada
+  // pelo Prisma para rodar migrações. No Neon é a connection string sem
+  // o sufixo "-pooler" no host. Mantido separado de DATABASE_URL (pooled),
+  // usada pela aplicação em runtime.
+  directUrl = env("DIRECT_URL")
+}
+
+/// Veículo à venda no pátio. Carga inicial via seed a partir de
+/// build/fonte/veiculos.csv (112 registros). O campo derivado `dif`
+/// ((anuncioAtacado - fipe) / fipe * 100) NÃO é persistido: é calculado
+/// na API, como build/build.py já faz.
+model Veiculo {
+  id             String @id @default(cuid())
+  placa          String @unique
+  versao         String
+  modelo         String
+  ano            String
+  cor            String
+  km             Int
+  diasEstoque    Int    @map("dias_estoque")
+  loja           String
+  uf             String
+  fipe           Int
+  anuncioAtacado Int    @map("anuncio_atacado")
+  utilizacao     String
+  empresa        String
+
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  imagens Imagem[]
+
+  @@map("veiculos")
+}
+
+/// Imagem de um veículo, armazenada DENTRO do Neon (coluna bytea).
+/// Regra de negócio: no máximo 5 imagens por veículo (ordem 0..4). Esse
+/// limite NÃO é expressável apenas por constraint de schema; ele é imposto
+/// na camada de API (FEAT-004), dentro de uma transação que conta as
+/// imagens existentes do veículo antes de inserir. O @@unique([veiculoId,
+/// ordem]) abaixo garante ordens distintas, mas não limita a contagem.
+/// O mimeType é validado na API (apenas image/jpeg, image/png, image/webp).
+model Imagem {
+  id           String   @id @default(cuid())
+  veiculoId    String   @map("veiculo_id")
+  dados        Bytes
+  mimeType     String   @map("mime_type")
+  tamanhoBytes Int      @map("tamanho_bytes")
+  largura      Int
+  altura       Int
+  ordem        Int
+  createdAt    DateTime @default(now()) @map("created_at")
+
+  veiculo Veiculo @relation(fields: [veiculoId], references: [id], onDelete: Cascade)
+
+  @@unique([veiculoId, ordem])
+  @@index([veiculoId])
+  @@map("imagens")
+}

@@ -1,6 +1,24 @@
+# Artefatos do projeto estático antigo (preservados no repo)
 build/dashboard/shots/
+
+# Dependências
 node_modules/
+
+# Next.js
+.next/
+out/
+
+# TypeScript (cache de build incremental)
+*.tsbuildinfo
+
+# Variáveis de ambiente / segredos (NUNCA commitar)
+.env
+.env*.local
+
+# Python (build/build.py)
 __pycache__/
 *.pyc
+
+# Diversos
 .DS_Store
 .vercel
