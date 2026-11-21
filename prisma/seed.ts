@@ -2,7 +2,8 @@
 // Idempotente (upsert por placa). NÃO cria imagens.
 //
 // Executar com: npm run db:seed  (ou: npx prisma db seed)
-// Requer DATABASE_URL/DIRECT_URL configurados apontando para o Neon.
+// Requer DATABASE_URL/DATABASE_URL_UNPOOLED configurados apontando para o Neon.
+// No build da Vercel ele roda sozinho, só com o banco vazio (scripts/preparar-banco.ts).
 
 import { readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";

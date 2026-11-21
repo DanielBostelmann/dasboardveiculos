@@ -11,8 +11,9 @@ datasource db {
   // directUrl aponta para a conexão direta (não-pooled) do Neon, usada
   // pelo Prisma para rodar migrações. No Neon é a connection string sem
   // o sufixo "-pooler" no host. Mantido separado de DATABASE_URL (pooled),
-  // usada pela aplicação em runtime.
-  directUrl = env("DIRECT_URL")
+  // usada pela aplicação em runtime. O nome DATABASE_URL_UNPOOLED é o que a
+  // integração Neon da Vercel cria automaticamente.
+  directUrl = env("DATABASE_URL_UNPOOLED")
 }
 
 /// Veículo à venda no pátio. Carga inicial via seed a partir de
