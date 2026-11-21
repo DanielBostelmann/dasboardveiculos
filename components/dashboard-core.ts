@@ -592,6 +592,9 @@ export function iniciarDashboard(
   let placaAtual: string | null = null;
   let imagensAtuais: ImagemMeta[] = [];
   let fotoIndice = 0;
+  // Guardado fora do DOM porque a galeria é redesenhada depois de cada envio
+  // ou remoção; sem isso a mensagem ("Foto adicionada.") sumia na hora.
+  let statusFoto = { texto: "", erro: false };
 
   function galeriaHtml() {
     const temFoto = imagensAtuais.length > 0;
@@ -603,8 +606,8 @@ export function iniciarDashboard(
         `<div class="galeria-main">` +
         `<img src="/api/imagens/${encodeURIComponent(img.id)}" alt="Foto ${idx + 1} de ${imagensAtuais.length} do veículo ${esc(placaAtual)}" loading="lazy">` +
         (imagensAtuais.length > 1
-          ? `<button type="button" class="galeria-nav prev" data-act="foto-prev" aria-label="Foto anterior">${ic("x")}</button>` +
-            `<button type="button" class="galeria-nav next" data-act="foto-next" aria-label="Próxima foto">${ic("x")}</button>`
+          ? `<button type="button" class="galeria-nav prev" data-act="foto-prev" aria-label="Foto anterior">${ic("chevron-right")}</button>` +
+            `<button type="button" class="galeria-nav next" data-act="foto-next" aria-label="Próxima foto">${ic("chevron-right")}</button>`
           : "") +
         (sessaoAdmin
           ? `<button type="button" class="galeria-del" data-act="foto-remover" data-v="${esc(img.id)}" aria-label="Remover esta foto">${ic("x")} Remover</button>`
@@ -623,11 +626,18 @@ export function iniciarDashboard(
     }
     if (sessaoAdmin) {
       const cheio = imagensAtuais.length >= 5;
+      // Dois campos: "Tirar foto" abre a câmera direto (capture); "Da galeria"
+      // abre o seletor de fotos do aparelho e aceita várias de uma vez.
+      const botoes = cheio
+        ? `<span class="btn primary galeria-upload desativado">${ic("image")} Limite de 5 fotos</span>`
+        : `<label class="btn primary galeria-upload">${ic("camera")} Tirar foto` +
+          `<input type="file" id="foto-camera" accept="image/*" capture="environment" hidden></label>` +
+          `<label class="btn ghost galeria-upload">${ic("image")} Da galeria` +
+          `<input type="file" id="foto-galeria" accept="image/*" multiple hidden></label>`;
       h +=
         `<div class="galeria-admin">` +
-        `<label class="btn primary galeria-upload${cheio ? " desativado" : ""}">${ic("download")} ${cheio ? "Limite de 5 fotos" : "Adicionar foto"}` +
-        `<input type="file" id="foto-input" accept="image/*" capture="environment"${cheio ? " disabled" : ""} hidden></label>` +
-        `<p class="galeria-status" id="foto-status" aria-live="polite"></p>` +
+        `<div class="galeria-botoes">${botoes}</div>` +
+        `<p class="galeria-status${statusFoto.erro ? " erro" : ""}" id="foto-status" aria-live="polite">${esc(statusFoto.texto)}</p>` +
         `</div>`;
     }
     h += `</div>`;
@@ -660,6 +670,7 @@ export function iniciarDashboard(
   }
 
   function msgStatus(texto: string, erro = false) {
+    statusFoto = { texto, erro };
     const el = $("#foto-status");
     if (el) {
       el.textContent = texto;
@@ -724,12 +735,15 @@ export function iniciarDashboard(
     return file;
   }
 
-  async function enviarFoto(file: File) {
-    if (!placaAtual) return;
-    const placa = placaAtual;
-    msgStatus("Preparando foto…");
+  /**
+   * Envia uma foto. `rotulo` vai nas mensagens de progresso quando há várias
+   * (ex.: " 2 de 3"). Retorna "ok", "erro" (falhou só esta; pode seguir com
+   * as próximas) ou "parar" (limite atingido ou sessão expirada).
+   */
+  async function enviarFoto(file: File, placa: string, rotulo = ""): Promise<"ok" | "erro" | "parar"> {
+    msgStatus(`Preparando foto${rotulo}…`);
     const foto = await reduzirFoto(file);
-    msgStatus("Enviando foto…");
+    msgStatus(`Enviando foto${rotulo}…`);
     const fd = new FormData();
     if (foto === file) {
       fd.append("arquivo", file);
@@ -742,25 +756,62 @@ export function iniciarDashboard(
         body: fd,
       });
       if (resp.status === 201) {
-        msgStatus("Foto adicionada.");
         await carregarImagens(placa);
         fotoIndice = Math.max(0, imagensAtuais.length - 1);
         if (placaAtual === placa) renderGaleria();
-      } else if (resp.status === 409) {
+        return "ok";
+      }
+      if (resp.status === 409) {
         msgStatus("Limite de 5 fotos por veículo atingido.", true);
-      } else if (resp.status === 413) {
-        msgStatus("Arquivo muito grande. Escolha uma foto menor.", true);
-      } else if (resp.status === 400) {
-        msgStatus("Arquivo inválido. Use uma imagem JPG, PNG ou WebP.", true);
-      } else if (resp.status === 401) {
+        return "parar";
+      }
+      if (resp.status === 401) {
         msgStatus("Sessão expirada. Entre novamente para enviar fotos.", true);
         await verificarSessao();
         if (placaAtual === placa && painel === "veic") renderGaleria();
-      } else {
-        msgStatus("Não foi possível enviar a foto. Tente de novo.", true);
+        return "parar";
       }
+      if (resp.status === 413) {
+        msgStatus(`Foto${rotulo} muito grande. Escolha uma foto menor.`, true);
+      } else if (resp.status === 400) {
+        msgStatus(`Foto${rotulo} inválida. Use uma imagem JPG, PNG ou WebP.`, true);
+      } else {
+        msgStatus(`Não foi possível enviar a foto${rotulo}. Tente de novo.`, true);
+      }
+      return "erro";
     } catch {
-      msgStatus("Falha de conexão ao enviar a foto.", true);
+      msgStatus(`Falha de conexão ao enviar a foto${rotulo}.`, true);
+      return "erro";
+    }
+  }
+
+  /** Envia uma ou mais fotos em sequência, respeitando as vagas restantes (máx. 5). */
+  async function enviarFotos(arquivos: File[]) {
+    if (!placaAtual || arquivos.length === 0) return;
+    const placa = placaAtual;
+    const vagas = Math.max(0, 5 - imagensAtuais.length);
+    if (vagas === 0) {
+      msgStatus("Limite de 5 fotos por veículo atingido.", true);
+      return;
+    }
+    const fila = arquivos.slice(0, vagas);
+    const total = fila.length;
+    let enviadas = 0;
+    let falhas = 0;
+    for (let i = 0; i < total; i++) {
+      const rotulo = total > 1 ? ` ${i + 1} de ${total}` : "";
+      const r = await enviarFoto(fila[i], placa, rotulo);
+      if (r === "ok") enviadas++;
+      else if (r === "erro") falhas++;
+      else return;
+    }
+    const sobra = arquivos.length - total;
+    if (falhas === 0) {
+      let texto = enviadas === 1 ? "Foto adicionada." : `${enviadas} fotos adicionadas.`;
+      if (sobra > 0) texto += ` ${sobra} não ${sobra === 1 ? "coube" : "couberam"} (limite de 5 fotos).`;
+      msgStatus(texto, sobra > 0);
+    } else if (total > 1) {
+      msgStatus(`${enviadas} de ${total} fotos adicionadas; ${falhas} falharam. Tente as que faltaram de novo.`, true);
     }
   }
 
@@ -795,6 +846,7 @@ export function iniciarDashboard(
     placaAtual = placa;
     imagensAtuais = [];
     fotoIndice = 0;
+    statusFoto = { texto: "", erro: false };
     const fin = precoFinal(r),
       d = difFipe(r),
       descFipe = r.fipe - fin;
@@ -1283,10 +1335,10 @@ export function iniciarDashboard(
       const num = $<HTMLInputElement>("#ajuste-num");
       if (num) num.value = dec1(AJUSTE);
       aplicarAjusteLeve();
-    } else if (target.id === "foto-input") {
-      const file = target.files && target.files[0];
-      if (file) void enviarFoto(file);
+    } else if (target.id === "foto-camera" || target.id === "foto-galeria") {
+      const arquivos = target.files ? Array.from(target.files) : [];
       target.value = "";
+      void enviarFotos(arquivos);
     }
   };
 

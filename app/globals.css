@@ -518,6 +518,7 @@ footer b{color:var(--ink)}
 .galeria-vazia{padding:28px 16px;text-align:center;color:var(--muted);border-radius:14px;background:var(--surface-2)}
 .galeria-vazia b{display:block;margin-bottom:4px;color:var(--ink);font-size:15px}
 .galeria-admin{margin-top:10px}
+.galeria-botoes{display:flex;flex-wrap:wrap;gap:8px}
 .galeria-upload{display:inline-flex;cursor:pointer}
 .galeria-upload.desativado{opacity:.6;cursor:not-allowed;pointer-events:none}
 .galeria-status{margin:8px 0 0;font-size:13px;color:var(--muted);min-height:1.2em}
