@@ -78,8 +78,12 @@ As variáveis de ambiente (`DATABASE_URL`, `DIRECT_URL`, `ADMIN_EMAIL`,
 painel da Vercel. Os headers de segurança que antes ficavam no `vercel.json`
 (X-Content-Type-Options, Referrer-Policy) agora são aplicados por
 `next.config.js`, junto de uma Content-Security-Policy restritiva que libera
-`img-src 'self'` para as fotos servidas pela API. O passo a passo completo de
-conexão Vercel/Neon é documentado à parte (FEAT-006).
+`img-src 'self'` para as fotos servidas pela API.
+
+O passo a passo completo de deploy (criar o banco no Neon e copiar a connection
+string, configurar as variáveis de ambiente na Vercel, gerar o hash da senha e o
+`SESSION_SECRET`, rodar as migrações e o seed, e verificar em produção) está em
+[`docs/DEPLOY.md`](docs/DEPLOY.md).
 
 ## Fonte dos dados
 
