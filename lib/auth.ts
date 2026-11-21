@@ -85,13 +85,53 @@ export function emailConfere(email: string): boolean {
   return email.trim().toLowerCase() === emailAdmin();
 }
 
+/** Formato de um hash bcrypt: $2a$/$2b$/$2y$, custo com 2 dígitos e 53 caracteres. */
+const FORMATO_HASH_BCRYPT = /^\$2[aby]\$\d{2}\$[./A-Za-z0-9]{53}$/;
+
+/**
+ * Lê ADMIN_PASSWORD_HASH tolerando o que costuma vir junto ao colar o valor
+ * no painel da Vercel: espaços ou quebras de linha nas bordas e aspas em volta.
+ * Retorna null quando a variável não está configurada.
+ */
+export function lerHashAdmin(): string | null {
+  const bruto = process.env.ADMIN_PASSWORD_HASH;
+  if (!bruto) {
+    return null;
+  }
+  const limpo = bruto.trim().replace(/^["']+|["']+$/g, "").trim();
+  return limpo.length > 0 ? limpo : null;
+}
+
+/**
+ * Resumo da configuração de autenticação para diagnóstico em log. Não contém
+ * segredos: só se cada variável existe, se o hash tem o formato bcrypt e o
+ * tamanho dele (um hash bcrypt válido sempre tem 60 caracteres).
+ */
+export function diagnosticoAuth(): {
+  hashConfigurado: boolean;
+  hashFormatoValido: boolean;
+  hashTamanho: number;
+  hashTinhaSobras: boolean;
+  sessaoConfigurada: boolean;
+} {
+  const bruto = process.env.ADMIN_PASSWORD_HASH ?? "";
+  const hash = lerHashAdmin();
+  return {
+    hashConfigurado: hash !== null,
+    hashFormatoValido: hash !== null && FORMATO_HASH_BCRYPT.test(hash),
+    hashTamanho: hash?.length ?? 0,
+    hashTinhaSobras: hash !== null && bruto !== hash,
+    sessaoConfigurada: lerSegredoSessao() !== null,
+  };
+}
+
 /**
  * Verifica a senha informada contra o hash bcrypt em ADMIN_PASSWORD_HASH.
  * Retorna false (negar) se o hash não estiver configurado ou se a comparação
  * falhar. Nunca lança por entrada inválida.
  */
 export async function senhaConfere(senha: string): Promise<boolean> {
-  const hash = process.env.ADMIN_PASSWORD_HASH;
+  const hash = lerHashAdmin();
   if (!hash || typeof senha !== "string" || senha.length === 0) {
     return false;
   }

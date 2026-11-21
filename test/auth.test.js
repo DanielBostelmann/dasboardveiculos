@@ -27,6 +27,33 @@ test("senhaConfere aceita a senha certa e rejeita a errada", async () => {
   assert.equal(await senhaConfere(""), false, "senha vazia deve ser rejeitada");
 });
 
+test("senhaConfere aceita hash colado com espaços, quebra de linha ou aspas", async () => {
+  const { senhaConfere, diagnosticoAuth } = await import("../lib/auth.ts");
+  const hash = await bcrypt.hash(SENHA_TESTE, 12);
+  const salvo = process.env.ADMIN_PASSWORD_HASH;
+  try {
+    for (const colado of [` ${hash} `, `${hash}\n`, `"${hash}"`, `'${hash}'\r\n`]) {
+      process.env.ADMIN_PASSWORD_HASH = colado;
+      assert.equal(await senhaConfere(SENHA_TESTE), true, `deve aceitar ${JSON.stringify(colado)}`);
+      assert.equal(await senhaConfere(SENHA_ERRADA), false);
+      const diag = diagnosticoAuth();
+      assert.equal(diag.hashFormatoValido, true);
+      assert.equal(diag.hashTamanho, 60);
+      assert.equal(diag.hashTinhaSobras, true);
+    }
+
+    process.env.ADMIN_PASSWORD_HASH = hash;
+    assert.equal(diagnosticoAuth().hashTinhaSobras, false);
+
+    process.env.ADMIN_PASSWORD_HASH = hash.slice(0, 40);
+    assert.equal(await senhaConfere(SENHA_TESTE), false, "hash cortado deve negar");
+    assert.equal(diagnosticoAuth().hashFormatoValido, false);
+  } finally {
+    if (salvo !== undefined) process.env.ADMIN_PASSWORD_HASH = salvo;
+    else delete process.env.ADMIN_PASSWORD_HASH;
+  }
+});
+
 test("senhaConfere nega quando ADMIN_PASSWORD_HASH não está configurado", async () => {
   const { senhaConfere } = await import("../lib/auth.ts");
   const salvo = process.env.ADMIN_PASSWORD_HASH;
