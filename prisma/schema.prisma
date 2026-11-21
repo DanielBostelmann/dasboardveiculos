@@ -1,0 +1,14 @@
+// Prisma schema inicial. O modelo de dados dos veículos e das fotos
+// (bytea armazenado DENTRO do Neon) será definido na FEAT-002.
+// Docs: https://pris.ly/d/prisma-schema
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+  // directUrl = env("DIRECT_URL") será habilitado na FEAT-002 para rodar
+  // migrações no Neon via conexão direta (não-pooled).
+}
