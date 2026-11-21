@@ -4,7 +4,14 @@
 // sem revelar qual campo errou. Aplica rate limit simples por IP.
 
 import { NextRequest, NextResponse } from "next/server";
-import { credenciaisConferem, emailAdmin, obterSessao, respostaNaoAutorizado } from "@/lib/auth";
+import {
+  credenciaisConferem,
+  diagnosticoAuth,
+  emailAdmin,
+  emailConfere,
+  obterSessao,
+  respostaNaoAutorizado,
+} from "@/lib/auth";
 import { limparTentativas, registrarTentativa } from "@/lib/rate-limit";
 
 export const runtime = "nodejs";
@@ -44,12 +51,15 @@ export async function POST(req: NextRequest): Promise<Response> {
 
   const ok = await credenciaisConferem(email, senha);
   if (!ok) {
+    // Só no log do servidor (nunca na resposta): o que falhou, sem segredos.
+    console.warn("[auth] login recusado", { emailConfere: emailConfere(email), ...diagnosticoAuth() });
     return respostaNaoAutorizado();
   }
 
   const sessao = await obterSessao();
   if (!sessao) {
     // SESSION_SECRET não configurado: negar de forma segura.
+    console.warn("[auth] login recusado: SESSION_SECRET ausente ou curto");
     return respostaNaoAutorizado();
   }
 
