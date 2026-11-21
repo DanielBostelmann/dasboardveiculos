@@ -162,7 +162,7 @@ const kpi = (page, k) => page.textContent(`[data-k="${k}"]`).then((t) => t.trim(
     ok(/RSU7B01/.test(sh) && /POLO|Polo/.test(sh), "detalhe mostra placa e modelo");
     ok(/Sem fotos/.test(sh), "galeria mostra estado vazio sem fotos");
     // controles de admin escondidos (não autenticado)
-    ok((await page.locator("#foto-input").count()) === 0, "upload de foto escondido quando não autenticado");
+    ok((await page.locator("#foto-camera, #foto-galeria").count()) === 0, "upload de foto escondido quando não autenticado");
     await page.keyboard.press("Escape");
     await page.waitForTimeout(400);
 
