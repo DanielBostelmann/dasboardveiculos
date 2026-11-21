@@ -79,6 +79,24 @@ export function podeAceitarMaisImagem(quantidadeAtual: number): ResultadoValidac
   return { ok: true };
 }
 
+/**
+ * Classifica se um erro é uma violação de restrição de unicidade do Prisma
+ * (código P2002). Pura e testável sem banco: reconhece tanto a instância real
+ * de `Prisma.PrismaClientKnownRequestError` (que expõe `code === 'P2002'`)
+ * quanto qualquer objeto de erro com essa mesma propriedade `code`.
+ *
+ * Usada no upload de imagem para mapear a corrida no limite de 5 fotos: sob
+ * Read Committed, dois uploads concorrentes podem ler a mesma contagem e
+ * escolher a mesma `ordem`, colidindo no `@@unique([veiculoId, ordem])`. Em vez
+ * de deixar esse P2002 virar um 500 genérico, a rota o traduz para um 409 de
+ * conflito coerente.
+ */
+export function ehViolacaoUnique(erro: unknown): boolean {
+  if (typeof erro !== "object" || erro === null) return false;
+  const code = (erro as { code?: unknown }).code;
+  return code === "P2002";
+}
+
 /** Imagem já processada, pronta para persistir. `dados` é um Uint8Array
  * respaldado por um ArrayBuffer próprio (o que o Prisma espera para Bytes). */
 export interface ImagemProcessada {

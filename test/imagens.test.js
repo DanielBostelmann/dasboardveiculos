@@ -100,6 +100,30 @@ test("processarImagem recomprime WebP dentro do alvo e não amplia imagem pequen
   assert.ok(out.tamanhoBytes <= TAMANHO_ALVO_SAIDA, "webp de teste fica dentro do alvo ~1MB");
 });
 
+test("ehViolacaoUnique reconhece P2002 (corrida no limite) e ignora o resto", async () => {
+  const { ehViolacaoUnique } = await import("../lib/imagens.ts");
+  const { Prisma } = await import("@prisma/client");
+
+  // Instância real do erro do Prisma para violação de unicidade (P2002), como
+  // acontece quando dois uploads concorrentes colidem no @@unique([veiculoId, ordem]).
+  const p2002 = new Prisma.PrismaClientKnownRequestError("Unique constraint failed", {
+    code: "P2002",
+    clientVersion: "6.0.0",
+    meta: { target: ["veiculoId", "ordem"] },
+  });
+  assert.equal(ehViolacaoUnique(p2002), true, "instância real de P2002 é violação de unique");
+
+  // Objeto simples com o mesmo shape (defensivo, sem depender da instância).
+  assert.equal(ehViolacaoUnique({ code: "P2002" }), true, "objeto com code P2002");
+
+  // Não deve classificar outros erros como conflito.
+  assert.equal(ehViolacaoUnique({ code: "P2025" }), false, "outro código do Prisma não é unique");
+  assert.equal(ehViolacaoUnique(new Error("boom")), false, "Error genérico não é unique");
+  assert.equal(ehViolacaoUnique(null), false, "null não é unique");
+  assert.equal(ehViolacaoUnique(undefined), false, "undefined não é unique");
+  assert.equal(ehViolacaoUnique("P2002"), false, "string não é unique");
+});
+
 test("processarImagem lança imagemInvalida para buffer não decodificável", async () => {
   const { processarImagem } = await import("../lib/imagens.ts");
 

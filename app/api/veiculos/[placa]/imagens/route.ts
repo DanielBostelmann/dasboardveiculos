@@ -8,6 +8,7 @@ import { NextResponse } from "next/server";
 import { requireAdmin } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import {
+  ehViolacaoUnique,
   MAX_IMAGENS_POR_VEICULO,
   podeAceitarMaisImagem,
   processarImagem,
@@ -120,6 +121,14 @@ export async function POST(
     const status = (e as { httpStatus?: number }).httpStatus;
     if (status === 409) {
       return erro("limite_imagens", 409);
+    }
+    // Corrida no limite de 5: sob Read Committed dois uploads concorrentes
+    // podem passar da contagem e colidir no @@unique([veiculoId, ordem]),
+    // gerando um P2002. Em vez de um 500 genérico, devolvemos um 409 de
+    // conflito coerente (fecha a corrida e qualquer estado de ordem
+    // inconsistente). O cliente pode simplesmente repetir o upload.
+    if (ehViolacaoUnique(e)) {
+      return erro("conflito", 409);
     }
     throw e;
   }
