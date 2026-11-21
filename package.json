@@ -8,7 +8,7 @@
     "build": "prisma generate && next build",
     "start": "next start",
     "lint": "next lint",
-    "test": "node --test \"test/**/*.test.js\"",
+    "test": "node --import tsx --test \"test/**/*.test.js\"",
     "db:migrate": "prisma migrate deploy",
     "db:seed": "tsx prisma/seed.ts",
     "prisma:generate": "prisma generate"
