@@ -57,7 +57,10 @@ export async function GET(
     },
     {
       headers: {
-        "Cache-Control": "public, s-maxage=60, stale-while-revalidate=300",
+        // Sem cache: a galeria relê esta rota logo depois de enviar ou remover
+        // uma foto, e uma resposta guardada (no CDN da Vercel ou no navegador)
+        // mostraria a lista antiga de fotos por até alguns minutos.
+        "Cache-Control": "no-store",
       },
     }
   );

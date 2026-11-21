@@ -644,6 +644,7 @@ export function iniciarDashboard(
     try {
       const resp = await fetch(`/api/veiculos/${encodeURIComponent(placa)}`, {
         headers: { accept: "application/json" },
+        cache: "no-store",
       });
       if (!resp.ok) {
         imagensAtuais = [];
@@ -666,12 +667,75 @@ export function iniciarDashboard(
     }
   }
 
+  // A Vercel recusa corpos de requisição acima de 4,5 MB antes de chegar à
+  // rota, e fotos de celular costumam passar disso. Por isso a foto é
+  // reduzida no navegador ao mesmo tamanho que o servidor guardaria (lado
+  // maior de 1600 px, JPEG) antes do envio; o servidor recomprime de qualquer
+  // forma. Usa createImageBitmap (sem URL blob:, que a CSP img-src 'self'
+  // bloquearia). Se o navegador não conseguir decodificar, envia o original.
+  const FOTO_LADO_MAXIMO = 1600;
+  const FOTO_LIMITE_ENVIO = 4 * 1024 * 1024;
+  const FOTO_SEM_REDUCAO_ATE = 1024 * 1024;
+
+  async function decodificarFoto(file: File): Promise<ImageBitmap> {
+    try {
+      // "from-image" aplica a rotação do EXIF (foto em pé continua em pé).
+      return await createImageBitmap(file, { imageOrientation: "from-image" });
+    } catch {
+      return await createImageBitmap(file);
+    }
+  }
+
+  function canvasParaJpeg(canvas: HTMLCanvasElement, qualidade: number): Promise<Blob | null> {
+    return new Promise((resolve) => canvas.toBlob(resolve, "image/jpeg", qualidade));
+  }
+
+  async function reduzirFoto(file: File): Promise<Blob> {
+    const tiposAceitos = ["image/jpeg", "image/png", "image/webp"];
+    if (file.size <= FOTO_SEM_REDUCAO_ATE && tiposAceitos.includes(file.type)) {
+      return file;
+    }
+    if (typeof createImageBitmap !== "function") return file;
+    let bitmap: ImageBitmap;
+    try {
+      bitmap = await decodificarFoto(file);
+    } catch {
+      return file;
+    }
+    const escala = Math.min(1, FOTO_LADO_MAXIMO / Math.max(bitmap.width, bitmap.height));
+    const canvas = document.createElement("canvas");
+    canvas.width = Math.max(1, Math.round(bitmap.width * escala));
+    canvas.height = Math.max(1, Math.round(bitmap.height * escala));
+    const ctx = canvas.getContext("2d");
+    if (!ctx) {
+      bitmap.close();
+      return file;
+    }
+    // Fundo branco: PNG com transparência não vira preto no JPEG.
+    ctx.fillStyle = "#fff";
+    ctx.fillRect(0, 0, canvas.width, canvas.height);
+    ctx.imageSmoothingQuality = "high";
+    ctx.drawImage(bitmap, 0, 0, canvas.width, canvas.height);
+    bitmap.close();
+    for (const qualidade of [0.85, 0.7, 0.55]) {
+      const blob = await canvasParaJpeg(canvas, qualidade);
+      if (blob && blob.size <= FOTO_LIMITE_ENVIO) return blob;
+    }
+    return file;
+  }
+
   async function enviarFoto(file: File) {
     if (!placaAtual) return;
     const placa = placaAtual;
+    msgStatus("Preparando foto…");
+    const foto = await reduzirFoto(file);
     msgStatus("Enviando foto…");
     const fd = new FormData();
-    fd.append("arquivo", file);
+    if (foto === file) {
+      fd.append("arquivo", file);
+    } else {
+      fd.append("arquivo", foto, "foto.jpg");
+    }
     try {
       const resp = await fetch(`/api/veiculos/${encodeURIComponent(placa)}/imagens`, {
         method: "POST",
