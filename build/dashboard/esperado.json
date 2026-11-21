@@ -1,0 +1,29 @@
+{
+ "total": 112,
+ "porModelo": {
+  "VW Polo": 40,
+  "VW Virtus Exclusive": 9,
+  "VW Virtus TSI": 63
+ },
+ "porCor": {
+  "Branco": 66,
+  "Preto": 13,
+  "Prata": 19,
+  "Cinza": 10,
+  "Vermelho": 4
+ },
+ "somaAnuncio": 8589400,
+ "somaFipe": 9690040,
+ "kmMax": 119522,
+ "fipePorModelo": {
+  "VW Polo": [
+   78082
+  ],
+  "VW Virtus Exclusive": [
+   112772
+  ],
+  "VW Virtus TSI": [
+   88124
+  ]
+ }
+}
