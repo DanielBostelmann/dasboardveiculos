@@ -5,12 +5,13 @@
   "description": "Dashboard de veículos à venda (CS Seminovos, Porto Velho/RO) com upload de fotos por administrador, Next.js + Prisma + Neon.",
   "scripts": {
     "dev": "next dev",
-    "build": "prisma generate && next build",
+    "build": "prisma generate && npm run db:preparar && next build",
     "start": "next start",
     "lint": "next lint",
     "test": "node --import tsx --test \"test/**/*.test.js\"",
     "db:migrate": "prisma migrate deploy",
     "db:seed": "tsx prisma/seed.ts",
+    "db:preparar": "tsx scripts/preparar-banco.ts",
     "prisma:generate": "prisma generate"
   },
   "prisma": {

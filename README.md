@@ -36,7 +36,9 @@ npm run build          # prisma generate + next build
 npm run dev            # servidor de desenvolvimento
 ```
 
-Os dados iniciais (112 veículos do CSV) são carregados pelo seed:
+Na Vercel, o build aplica as migrações e, com o banco vazio, carrega os 112
+veículos do CSV sozinho (`npm run db:preparar`). Localmente, com um `.env`
+apontando para o Neon:
 
 ```bash
 npm run db:migrate     # aplica as migrações no banco
@@ -73,16 +75,16 @@ atualizar o CSV, rode o seed (`npm run db:seed`) para recarregar o banco.
 ## Publicação na Vercel
 
 O deploy agora é um app Next.js (Framework Preset: **Next.js**, build automático).
-As variáveis de ambiente (`DATABASE_URL`, `DIRECT_URL`, `ADMIN_EMAIL`,
-`ADMIN_PASSWORD_HASH`, `SESSION_SECRET`) ficam **fora do git**, configuradas no
-painel da Vercel. Os headers de segurança que antes ficavam no `vercel.json`
+As variáveis de ambiente (`DATABASE_URL` e `DATABASE_URL_UNPOOLED`, criadas pela
+integração Neon da Vercel, mais `ADMIN_EMAIL`, `ADMIN_PASSWORD_HASH` e
+`SESSION_SECRET`) ficam **fora do git**, configuradas no painel da Vercel. Os headers de segurança que antes ficavam no `vercel.json`
 (X-Content-Type-Options, Referrer-Policy) agora são aplicados por
 `next.config.js`, junto de uma Content-Security-Policy restritiva que libera
 `img-src 'self'` para as fotos servidas pela API.
 
-O passo a passo completo de deploy (criar o banco no Neon e copiar a connection
-string, configurar as variáveis de ambiente na Vercel, gerar o hash da senha e o
-`SESSION_SECRET`, rodar as migrações e o seed, e verificar em produção) está em
+O passo a passo completo de deploy (criar o banco Neon pela aba Storage da
+Vercel, configurar as variáveis do admin, gerar o hash da senha e o
+`SESSION_SECRET`, e verificar em produção) está em
 [`docs/DEPLOY.md`](docs/DEPLOY.md).
 
 ## Fonte dos dados
