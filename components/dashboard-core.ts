@@ -596,21 +596,33 @@ export function iniciarDashboard(
   // ou remoção; sem isso a mensagem ("Foto adicionada.") sumia na hora.
   let statusFoto = { texto: "", erro: false };
 
+  const urlImagem = (id: string) => `/api/imagens/${encodeURIComponent(id)}`;
+
   function galeriaHtml() {
     const temFoto = imagensAtuais.length > 0;
     const idx = Math.min(fotoIndice, Math.max(0, imagensAtuais.length - 1));
+    const n = imagensAtuais.length;
     let h = `<div class="galeria" id="galeria">`;
     if (temFoto) {
-      const img = imagensAtuais[idx];
+      // Trilho com todas as fotos lado a lado e rolagem com "snap": no celular
+      // a foto acompanha o dedo ao deslizar. Tocar numa foto abre a tela cheia.
       h +=
         `<div class="galeria-main">` +
-        `<img src="/api/imagens/${encodeURIComponent(img.id)}" alt="Foto ${idx + 1} de ${imagensAtuais.length} do veículo ${esc(placaAtual)}" loading="lazy">` +
-        (imagensAtuais.length > 1
+        `<div class="galeria-trilho" id="galeria-trilho">` +
+        imagensAtuais
+          .map(
+            (im, i) =>
+              `<button type="button" class="galeria-slide" data-act="foto-ampliar" data-v="${i}" aria-label="Ampliar foto ${i + 1} de ${n} do veículo ${esc(placaAtual)}">` +
+              `<img src="${urlImagem(im.id)}" alt="" draggable="false" loading="${i === idx ? "eager" : "lazy"}"></button>`
+          )
+          .join("") +
+        `</div>` +
+        (n > 1
           ? `<button type="button" class="galeria-nav prev" data-act="foto-prev" aria-label="Foto anterior">${ic("chevron-right")}</button>` +
             `<button type="button" class="galeria-nav next" data-act="foto-next" aria-label="Próxima foto">${ic("chevron-right")}</button>`
           : "") +
         (sessaoAdmin
-          ? `<button type="button" class="galeria-del" data-act="foto-remover" data-v="${esc(img.id)}" aria-label="Remover esta foto">${ic("x")} Remover</button>`
+          ? `<button type="button" class="galeria-del" data-act="foto-remover" aria-label="Remover esta foto">${ic("x")} Remover</button>`
           : "") +
         `</div>` +
         `<div class="galeria-dots" role="tablist" aria-label="Selecionar foto">` +
@@ -644,11 +656,118 @@ export function iniciarDashboard(
     return h;
   }
 
+  const reduzMovimento = () =>
+    typeof matchMedia === "function" && matchMedia("(prefers-reduced-motion: reduce)").matches;
+
+  /** Índice da foto visível num trilho (cada foto ocupa 100% da largura). */
+  const indiceDoTrilho = (t: HTMLElement) =>
+    t.clientWidth > 0 ? Math.round(t.scrollLeft / t.clientWidth) : 0;
+
+  /** Rola o trilho até a foto `i` (com volta: depois da última vem a primeira). */
+  function irParaFoto(t: HTMLElement | null, i: number, suave = true) {
+    if (!t || !t.children.length) return;
+    const n = t.children.length;
+    const alvo = ((i % n) + n) % n;
+    t.scrollTo({ left: alvo * t.clientWidth, behavior: suave && !reduzMovimento() ? "smooth" : "auto" });
+  }
+
+  /** Atualiza bolinhas e índice da galeria sem redesenhar (chamado ao rolar). */
+  function marcarFotoAtual(i: number) {
+    fotoIndice = i;
+    $$<HTMLElement>(".galeria-dot").forEach((d, k) => {
+      d.classList.toggle("is-active", k === i);
+      d.setAttribute("aria-selected", String(k === i));
+    });
+    const del = $(".galeria-del");
+    if (del) del.setAttribute("aria-label", `Remover a foto ${i + 1}`);
+  }
+
   function renderGaleria() {
     const alvo = $("#galeria-slot");
     if (!alvo) return;
     alvo.innerHTML = galeriaHtml();
+    const trilho = $<HTMLElement>("#galeria-trilho");
+    if (trilho) trilho.scrollLeft = fotoIndice * trilho.clientWidth;
   }
+
+  /* ---------- visor de fotos em tela cheia ---------- */
+  // Abre por cima do painel do veículo, mostra a foto inteira (sem corte) e
+  // permite deslizar entre as fotos. Fecha no X, no Esc ou no "voltar" do
+  // celular (entra no histórico como o painel).
+  let visorAberto = false;
+  let focoAntesDoVisor: HTMLElement | null = null;
+
+  function atualizarContadorVisor(i: number) {
+    const cont = $("#visor-cont");
+    if (cont) cont.textContent = `${i + 1} / ${imagensAtuais.length}`;
+  }
+
+  function abrirVisor(i: number) {
+    if (visorAberto || !imagensAtuais.length) return;
+    const n = imagensAtuais.length;
+    const idx = Math.min(Math.max(0, i), n - 1);
+    focoAntesDoVisor = document.activeElement as HTMLElement;
+    const visor = document.createElement("div");
+    visor.className = "visor";
+    visor.id = "visor";
+    visor.setAttribute("role", "dialog");
+    visor.setAttribute("aria-modal", "true");
+    visor.setAttribute("aria-label", `Fotos do veículo ${placaAtual ?? ""}`);
+    visor.innerHTML =
+      `<div class="visor-topo"><span class="visor-cont" id="visor-cont" aria-live="polite"></span>` +
+      `<button type="button" class="visor-fechar" data-act="visor-fechar" aria-label="Fechar fotos">${ic("x")}</button></div>` +
+      `<div class="visor-trilho" id="visor-trilho">` +
+      imagensAtuais
+        .map(
+          (im, k) =>
+            `<div class="visor-slide"><img src="${urlImagem(im.id)}" alt="Foto ${k + 1} de ${n} do veículo ${esc(placaAtual)}" draggable="false" loading="${Math.abs(k - idx) <= 1 ? "eager" : "lazy"}"></div>`
+        )
+        .join("") +
+      `</div>` +
+      (n > 1
+        ? `<button type="button" class="visor-nav prev" data-act="visor-prev" aria-label="Foto anterior">${ic("chevron-right")}</button>` +
+          `<button type="button" class="visor-nav next" data-act="visor-next" aria-label="Próxima foto">${ic("chevron-right")}</button>`
+        : "");
+    document.body.appendChild(visor);
+    visorAberto = true;
+    const trilho = $<HTMLElement>("#visor-trilho")!;
+    trilho.scrollLeft = idx * trilho.clientWidth;
+    atualizarContadorVisor(idx);
+    try {
+      history.pushState({ painel: 1, visor: 1 }, "");
+    } catch {
+      /* sem histórico */
+    }
+    setTimeout(() => $<HTMLElement>(".visor-fechar")?.focus({ preventScroll: true }), 30);
+  }
+
+  function fecharVisor(doHistorico?: boolean) {
+    if (!visorAberto) return;
+    const trilho = $<HTMLElement>("#visor-trilho");
+    const idx = trilho ? indiceDoTrilho(trilho) : fotoIndice;
+    $("#visor")?.remove();
+    visorAberto = false;
+    // A galeria do painel passa a mostrar a última foto vista em tela cheia.
+    const galeria = $<HTMLElement>("#galeria-trilho");
+    if (galeria) galeria.scrollLeft = idx * galeria.clientWidth;
+    marcarFotoAtual(idx);
+    const slide = $$<HTMLElement>(".galeria-slide")[idx];
+    const foco = slide || focoAntesDoVisor;
+    if (foco && document.contains(foco)) foco.focus({ preventScroll: true });
+    if (!doHistorico && history.state && history.state.visor) history.back();
+  }
+
+  /** Rolagem dos trilhos (galeria e visor): atualiza bolinhas/contador. */
+  const onScrollTrilho = (e: Event) => {
+    const t = e.target as HTMLElement;
+    if (!(t instanceof HTMLElement)) return;
+    if (t.id === "galeria-trilho") {
+      const i = indiceDoTrilho(t);
+      if (i !== fotoIndice) marcarFotoAtual(i);
+    } else if (t.id === "visor-trilho") {
+      atualizarContadorVisor(indiceDoTrilho(t));
+    }
+  };
 
   async function carregarImagens(placa: string) {
     try {
@@ -1299,24 +1418,31 @@ export function iniciarDashboard(
         void fazerLogout();
         break;
       case "foto-prev":
-        if (imagensAtuais.length) {
-          fotoIndice = (fotoIndice - 1 + imagensAtuais.length) % imagensAtuais.length;
-          renderGaleria();
-        }
+        irParaFoto($<HTMLElement>("#galeria-trilho"), fotoIndice - 1);
         break;
       case "foto-next":
-        if (imagensAtuais.length) {
-          fotoIndice = (fotoIndice + 1) % imagensAtuais.length;
-          renderGaleria();
-        }
+        irParaFoto($<HTMLElement>("#galeria-trilho"), fotoIndice + 1);
         break;
       case "foto-ir":
-        fotoIndice = Number(v) || 0;
-        renderGaleria();
+        irParaFoto($<HTMLElement>("#galeria-trilho"), Number(v) || 0);
         break;
-      case "foto-remover":
-        void removerFoto(v);
+      case "foto-ampliar":
+        abrirVisor(Number(v) || 0);
         break;
+      case "visor-fechar":
+        fecharVisor();
+        break;
+      case "visor-prev":
+      case "visor-next": {
+        const t = $<HTMLElement>("#visor-trilho");
+        if (t) irParaFoto(t, indiceDoTrilho(t) + (a === "visor-next" ? 1 : -1));
+        break;
+      }
+      case "foto-remover": {
+        const atual = imagensAtuais[Math.min(fotoIndice, imagensAtuais.length - 1)];
+        if (atual) void removerFoto(atual.id);
+        break;
+      }
       default:
         break;
     }
@@ -1366,6 +1492,33 @@ export function iniciarDashboard(
 
   const onKeydown = (e: KeyboardEvent) => {
     const target = e.target as HTMLElement;
+    if (visorAberto) {
+      const t = $<HTMLElement>("#visor-trilho");
+      if (e.key === "Escape") {
+        e.preventDefault();
+        fecharVisor();
+      } else if ((e.key === "ArrowLeft" || e.key === "ArrowRight") && t) {
+        e.preventDefault();
+        irParaFoto(t, indiceDoTrilho(t) + (e.key === "ArrowRight" ? 1 : -1));
+      } else if (e.key === "Tab") {
+        // Mantém o foco dentro do visor (fechar e setas).
+        const foc = $$<HTMLElement>("#visor button");
+        if (foc.length) {
+          const [p, u] = [foc[0], foc[foc.length - 1]];
+          if (e.shiftKey && document.activeElement === p) {
+            e.preventDefault();
+            u.focus();
+          } else if (!e.shiftKey && document.activeElement === u) {
+            e.preventDefault();
+            p.focus();
+          } else if (!foc.includes(document.activeElement as HTMLElement)) {
+            e.preventDefault();
+            p.focus();
+          }
+        }
+      }
+      return;
+    }
     if (target.id === "v-busca" && e.key === "Enter") {
       const prim = filtrados()
         .filter((r) => busca(r.placa).includes(busca(S.vq)))
@@ -1421,7 +1574,13 @@ export function iniciarDashboard(
     if (!(e.target as Element).closest(".search-wrap") && $("#v-sug")) $("#v-sug")!.hidden = true;
   };
   const onPopstate = () => {
-    if (painel) fecharPainel(true);
+    // "Voltar" com o visor aberto fecha só o visor; o painel continua.
+    if (visorAberto) {
+      fecharVisor(true);
+      return;
+    }
+    // Ao voltar do visor o estado ainda é o do painel: não fechar o painel.
+    if (painel && !(history.state && history.state.painel)) fecharPainel(true);
   };
 
   /* ===================== início ===================== */
@@ -1438,6 +1597,8 @@ export function iniciarDashboard(
   sheetClose.addEventListener("click", onSheetClose);
   tabsEl.addEventListener("keydown", onTabsKeydown as EventListener);
   window.addEventListener("popstate", onPopstate);
+  // scroll não borbulha: captura no documento para ouvir os trilhos de fotos.
+  document.addEventListener("scroll", onScrollTrilho, { capture: true, passive: true });
 
   $("#sub-loja")!.textContent = `${REG[0]?.loja || "CS Seminovos"} · ${CFG.local}`;
   $("#kpis")!.innerHTML = KPIS.map(
@@ -1485,6 +1646,8 @@ export function iniciarDashboard(
       sheetClose.removeEventListener("click", onSheetClose);
       tabsEl.removeEventListener("keydown", onTabsKeydown as EventListener);
       window.removeEventListener("popstate", onPopstate);
+      document.removeEventListener("scroll", onScrollTrilho, { capture: true });
+      $("#visor")?.remove();
       try {
         delete (window as unknown as { __DASH__?: unknown }).__DASH__;
       } catch {

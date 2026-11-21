@@ -503,14 +503,20 @@ footer b{color:var(--ink)}
 .veic-fotos .ic{width:15px;height:15px}
 /* galeria no painel de detalhe */
 .galeria{margin:0 0 14px}
-.galeria-main{position:relative;border-radius:14px;overflow:hidden;background:var(--surface-3);aspect-ratio:4/3;display:grid;place-items:center}
-.galeria-main img{width:100%;height:100%;object-fit:cover;display:block}
-.galeria-nav{position:absolute;top:50%;transform:translateY(-50%);width:40px;height:40px;border-radius:50%;border:0;background:rgba(3,12,20,.5);color:#fff;display:grid;place-items:center;transition:background .2s}
+.galeria-main{position:relative;border-radius:14px;overflow:hidden;background:var(--surface-3);aspect-ratio:4/3}
+/* Trilho deslizante: uma foto por vez, encaixando ao soltar o dedo. */
+.galeria-trilho{position:absolute;inset:0;display:flex;overflow-x:auto;overflow-y:hidden;scroll-snap-type:x mandatory;overscroll-behavior-x:contain;scrollbar-width:none;-webkit-overflow-scrolling:touch}
+.galeria-trilho::-webkit-scrollbar{display:none}
+.galeria-slide{position:relative;flex:0 0 100%;height:100%;margin:0;padding:0;border:0;background:none;scroll-snap-align:center;scroll-snap-stop:always;cursor:zoom-in}
+/* A imagem preenche o quadro e o corte é pelo centro: em fotos em pé perde-se
+   um pouco de cima e de baixo, mas o carro fica no meio do quadro. */
+.galeria-slide img{position:absolute;inset:0;width:100%;height:100%;object-fit:cover;object-position:center;display:block;-webkit-user-drag:none;user-select:none;-webkit-user-select:none}
+.galeria-nav{z-index:1;position:absolute;top:50%;transform:translateY(-50%);width:40px;height:40px;border-radius:50%;border:0;background:rgba(3,12,20,.5);color:#fff;display:grid;place-items:center;transition:background .2s}
 .galeria-nav:hover{background:rgba(3,12,20,.7)}
 .galeria-nav .ic{width:20px;height:20px}
 .galeria-nav.prev{left:8px;transform:translateY(-50%) rotate(180deg)}
 .galeria-nav.next{right:8px}
-.galeria-del{position:absolute;right:8px;bottom:8px;display:inline-flex;align-items:center;gap:6px;min-height:36px;padding:6px 12px;border:0;border-radius:11px;background:rgba(194,65,12,.92);color:#fff;font-size:13px;font-weight:800}
+.galeria-del{z-index:1;position:absolute;right:8px;bottom:8px;display:inline-flex;align-items:center;gap:6px;min-height:36px;padding:6px 12px;border:0;border-radius:11px;background:rgba(194,65,12,.92);color:#fff;font-size:13px;font-weight:800}
 .galeria-del .ic{width:16px;height:16px}
 .galeria-dots{display:flex;justify-content:center;gap:6px;margin-top:10px}
 .galeria-dot{width:10px;height:10px;border-radius:50%;border:0;background:var(--surface-3);padding:0}
@@ -523,6 +529,25 @@ footer b{color:var(--ink)}
 .galeria-upload.desativado{opacity:.6;cursor:not-allowed;pointer-events:none}
 .galeria-status{margin:8px 0 0;font-size:13px;color:var(--muted);min-height:1.2em}
 .galeria-status.erro{color:var(--danger);font-weight:700}
+
+/* ---------- visor de fotos em tela cheia ---------- */
+.visor{position:fixed;inset:0;z-index:80;background:#000;animation:pop .18s ease-out}
+.visor-trilho{position:absolute;inset:0;display:flex;overflow-x:auto;overflow-y:hidden;scroll-snap-type:x mandatory;overscroll-behavior:contain;scrollbar-width:none;-webkit-overflow-scrolling:touch}
+.visor-trilho::-webkit-scrollbar{display:none}
+.visor-slide{position:relative;flex:0 0 100%;height:100%;scroll-snap-align:center;scroll-snap-stop:always}
+/* Em tela cheia a foto aparece inteira, sem corte. */
+.visor-slide img{position:absolute;inset:0;width:100%;height:100%;object-fit:contain;-webkit-user-drag:none;user-select:none;-webkit-user-select:none}
+.visor-topo{position:absolute;z-index:2;top:0;left:0;right:0;display:flex;align-items:center;justify-content:space-between;gap:12px;padding:calc(10px + env(safe-area-inset-top)) 12px 18px 16px;background:linear-gradient(rgba(0,0,0,.6),transparent);color:#fff;pointer-events:none}
+.visor-cont{font-size:15px;font-weight:800;font-variant-numeric:tabular-nums;text-shadow:0 1px 2px rgba(0,0,0,.6)}
+.visor-fechar{pointer-events:auto;width:44px;height:44px;border-radius:50%;border:0;background:rgba(255,255,255,.18);color:#fff;display:grid;place-items:center}
+.visor-fechar:hover{background:rgba(255,255,255,.28)}
+.visor-nav{position:absolute;z-index:2;top:50%;transform:translateY(-50%);width:44px;height:44px;border-radius:50%;border:0;background:rgba(255,255,255,.16);color:#fff;display:grid;place-items:center}
+.visor-nav:hover{background:rgba(255,255,255,.28)}
+.visor-nav .ic{width:22px;height:22px}
+.visor-nav.prev{left:10px;transform:translateY(-50%) rotate(180deg)}
+.visor-nav.next{right:10px}
+/* No celular o gesto de deslizar já resolve; as setas ficam para mouse/teclado. */
+@media (hover:none) and (pointer:coarse){.visor-nav{display:none}}
 /* formulário de administração */
 .admin-form{display:grid;gap:10px}
 .admin-campo{display:grid;gap:4px;font-size:13px;font-weight:700;color:var(--muted)}
